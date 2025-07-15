@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 
 
 
+# After getting the extracted_features.csv
+
 def load_and_merge_data(feature_file, age_file):
     """
     Load features and age CSVs, merge on Patient_ID, and return a DataFrame.
