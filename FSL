@@ -1,3 +1,5 @@
+All the '----' means copy them seperatly, ' ** ' means explainations.
+
 ----
 First, need to open the termial, maybe by typing 'wsl' in the command prompt. 
 Please change the naming rules in the file according to the real file name.
@@ -50,6 +52,12 @@ export FSLDIR=/usr/local/fsl
 source $FSLDIR/etc/fslconf/fsl.sh
 
 ----
+Check FSL Commands Verify that fast and other FSL tools are available
+
+which fast
+which fsleyes
+
+----
 Change the root directory
 
 cd /mnt/c/Users/ABCD/Documents/Helsa/NEWdata
@@ -63,6 +71,113 @@ bet sub-01/anat/sub-01_T1w.nii.gz sub-01/anat/sub-01_T1w_brain.nii.gz -f 0.5 -g 
 ** Replace sub-01_T1w.nii.gz with your file’s name.
 ** -f 0.5: Fractional intensity threshold (adjust if skull-stripping is too aggressive or lenient).
 ** -g 0: Vertical gradient (adjust if needed).
+
+
+        -------------------------------------------- (Option)
+
+        Or, after the skull stripping, consider using fast right now, to est FAST on a Single Subject.
+        Run FAST on a skull-stripped image and save the output to a file:
+
+fast -t 1 -n 3 -v -o sub-01/anat/sub-01_T1w_seg sub-01/anat/sub-01_T1w_brain.nii.gz > sub-01/anat/sub-01_T1w_seg_report.txt
+
+
+        ** -t 1: T1-weighted image.
+        ** -n 3: Segment into 3 classes (CSF, gray matter, white matter).
+        ** -v: Verbose output for detailed iteration logs.
+        ** -o: Output prefix for segmentation files.
+        ** > sub-01_T1w_seg_report.txt: Saves the report to a text file.
+
+        ----
+        Check the Report View the report:
+
+cat sub-01/anat/sub-01_T1w_seg_report.txt
+
+        ----
+        Check Segmentation Outputs
+
+ls sub-01/anat/sub-01_T1w_seg*
+
+        ----
+        Create the script:
+
+cd /mnt/c/Users/wjw_4/Documents/Helsa/NEWdata
+nano process_mri.sh
+
+        ----
+        Creating th bash:
+
+#!/bin/bash
+export FSLDIR=/usr/local/fsl
+source $FSLDIR/etc/fslconf/fsl.sh
+
+if ! command -v fast &> /dev/null
+then
+    echo "Error: FAST not found. Check FSL installation."
+    exit 1
+fi
+
+for i in $(seq -w 1 17)
+do
+    subject="sub-${i}"
+    input_file="${subject}/anat/${subject}_T1w.nii.gz"
+    brain_file="${subject}/anat/${subject}_T1w_brain.nii.gz"
+    output_prefix="${subject}/anat/${subject}_T1w_seg"
+    report_file="${subject}/anat/${subject}_T1w_seg_report.txt"
+    
+    echo "Processing ${subject}..."
+    
+    if [ -f "$input_file" ]
+    then
+        bet "$input_file" "$brain_file" -f 0.5 -g 0
+        if [ -f "$brain_file" ]
+        then
+            fast -t 1 -n 3 -v -o "$output_prefix" "$brain_file" > "$report_file"
+            echo "${subject} processed successfully. Report saved to $report_file"
+        else
+            echo "Error: BET failed for ${subject}."
+        fi
+    else
+        echo "Error: Input file ${input_file} not found."
+    fi
+done
+
+echo "Subject,GrayMatterVolume,WhiteMatterVolume,CSFVolume" > volumes.csv
+for i in $(seq -w 1 17)
+do
+    subject="sub-${i}"
+    gm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_1.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    wm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_2.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    csf_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_0.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    echo "${subject},${gm_vol},${wm_vol},${csf_vol}" >> volumes.csv
+done
+
+
+
+
+
+Save (Ctrl+O, Enter, Ctrl+X).
+
+
+
+
+        -----
+        Run the script:
+
+chmod +x process_mri.sh
+./process_mri.sh
+
+        -----
+        Check the FSL View:
+
+which fslview
+fslview sub-01/anat/sub-01_T1w_brain.nii.gz sub-01/anat/sub-01_T1w_seg_seg.nii.gz
+
+        -----
+        Check the report:
+
+cat sub-01/anat/sub-01_T1w_seg_report.txt
+
+        ------------------------------------------------------- (End of the option)
 
 ----
 Check the output file:
