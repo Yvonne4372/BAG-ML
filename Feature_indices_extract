@@ -1,0 +1,154 @@
+import os
+import pandas as pd
+import glob
+import numpy as np
+import re
+
+# Check the file structure
+def print_tree(startpath, max_depth=3):
+    for root, dirs, files in os.walk(startpath):
+        depth = root.replace(startpath, '').count(os.sep)
+        if depth > max_depth:
+            continue
+        indent = ' ' * 4 * depth
+        print(f"{indent}{os.path.basename(root)}/")
+        for f in files:
+            print(f"{indent}    {f}")
+
+if __name__ == "__main__":
+    print_tree('extract')
+
+
+
+def parse_mri_segmentation_file(file_path, subject_id):
+
+    features = {
+        'ID': subject_id,
+        'image_metadata': {},
+        'tissue_statistics': [],
+        'volumes': {}
+    }
+    
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+
+            image_size_match = re.search(r'Imagesize\s*:\s*(\d+)\s*x\s*(\d+)\s*x\s*(\d+)', content)
+            if image_size_match:
+                features['image_metadata']['image_size'] = {
+                    'x': int(image_size_match.group(1)),
+                    'y': int(image_size_match.group(2)),
+                    'z': int(image_size_match.group(3))
+                }
+            
+            pixel_size_match = re.search(r'Pixelsize\s*:\s*(\d+)\s*x\s*(\d+)\s*x\s*(\d+)', content)
+            if pixel_size_match:
+                features['image_metadata']['pixel_size'] = {
+                    'x': float(pixel_size_match.group(1)),
+                    'y': float(pixel_size_match.group(2)),
+                    'z': float(pixel_size_match.group(3))
+                }
+            
+            # Tissue
+            tissue_stats_section = re.search(r'The final statistics are:(.*?)(Segmentation done successfully!|$)', content, re.DOTALL)
+            if tissue_stats_section:
+                tissue_lines = tissue_stats_section.group(1).strip().split('\n')
+                for line in tissue_lines:
+                    tissue_match = re.match(r'Tissue\s*(\d+):\s*([\d.]+)\s*([\d.]+)', line.strip())
+                    if tissue_match:
+                        tissue_id = int(tissue_match.group(1))
+                        mean = float(tissue_match.group(2))
+                        stddev = float(tissue_match.group(3))
+                        features['tissue_statistics'].append({
+                            'tissue_id': tissue_id,
+                            'mean': mean,
+                            'stddev': stddev
+                        })
+            
+            # Volume
+            volume_match = re.search(r'Class:\s*CSF\s*tissue 1\s*tissue 2\s*brain percentage\s*Volumes:\s*([\d.]+)\s*([\d.]+)\s*([\d.]+)\s*([\d.]+)', content)
+            if volume_match:
+                features['volumes'] = {
+                    'CSF': float(volume_match.group(1)),
+                    'tissue_1': float(volume_match.group(2)),
+                    'tissue_2': float(volume_match.group(3)),
+                    'brain_percentage': float(volume_match.group(4))
+                }
+                
+        return features
+    
+    except FileNotFoundError:
+        print(f"Error: File '{file_path}' not found for subject {subject_id}.")
+        return None
+    except Exception as e:
+        print(f"Error parsing file {file_path} for subject {subject_id}: {e}")
+        return None
+
+
+
+def save_features_to_csv(all_features, output_file):
+
+    rows = []
+    
+    for features in all_features:
+        if not features:
+            continue
+        row = {'ID': features['ID']}
+        
+        row['image_size_x'] = features['image_metadata']['image_size']['x']
+        row['image_size_y'] = features['image_metadata']['image_size']['y']
+        row['image_size_z'] = features['image_metadata']['image_size']['z']
+        row['pixel_size_x'] = features['image_metadata']['pixel_size']['x']
+        row['pixel_size_y'] = features['image_metadata']['pixel_size']['y']
+        row['pixel_size_z'] = features['image_metadata']['pixel_size']['z']
+        
+        for tissue in features['tissue_statistics']:
+            tissue_id = tissue['tissue_id']
+            row[f'tissue_{tissue_id}_mean'] = tissue['mean']
+            row[f'tissue_{tissue_id}_stddev'] = tissue['stddev']
+        
+        row.update(features['volumes'])
+        
+        rows.append(row)
+    
+    df = pd.DataFrame(rows)
+    df.to_csv(output_file, index=False)
+    print(f"Features saved to '{output_file}'.")
+
+
+
+
+def process_all_subjects(root_dir, output_csv):
+ 
+    all_features = []
+    
+    # Iterate through subfolders
+    for subfolder in os.listdir(root_dir):
+        subfolder_path = os.path.join(root_dir, subfolder)
+        
+        if os.path.isdir(subfolder_path) and subfolder.startswith('OAS1_'):
+            seg_file = os.path.join(subfolder_path, 'FSL_SEG', f'{subfolder}_mpr_n4_anon_111_t88_masked_gfc_fseg.txt')
+            
+            if os.path.exists(seg_file):
+                print(f"Processing {seg_file}...")
+                features = parse_mri_segmentation_file(seg_file, subfolder)
+                if features:
+                    all_features.append(features)
+            else:
+                print(f"Warning: Segmentation file not found for {subfolder}")
+    
+    # Save all features to CSV
+    if all_features:
+        save_features_to_csv(all_features, output_csv)
+    else:
+        print("No features extracted. Check folder structure or file contents.")
+
+
+
+# Now do it !!!
+
+root_dir = 'extract'
+output_csv = 'extracted_features.csv'
+process_all_subjects(root_dir, output_csv)
+
+
