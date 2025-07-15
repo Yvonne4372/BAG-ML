@@ -17,4 +17,4 @@ For the Fastsurfer, here is a notification:
 
 File Format: FAST requires input images in NIfTI format (.nii or .nii.gz). If your MRI data is in DICOM format, convert it to NIfTI using tools like dcm2nii (from MRIcron) or dcmstack. Example command:
 
-   dcm2nii -o output_directory input_dicom_folder
+         dcm2nii -o output_directory input_dicom_folder
