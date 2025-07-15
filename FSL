@@ -1,24 +1,31 @@
-# First, need to open the termial, maybe by typing 'wsl' in the command prompt.
+----
+First, need to open the termial, maybe by typing 'wsl' in the command prompt. 
+Please change the naming rules in the file according to the real file name.
 
-# In my local computer, I stored the data inside a folder named 'NEWdata'. The Windows folder C:\Users\wjw_4\Documents\Helsa\NEWdata in WSL is mapped to /mnt/c/Users/wjw_4/Documents/Helsa/NEWdata. Use:
+----
+In my local computer, I stored the data inside a folder named 'NEWdata'. The Windows folder C:\Users\ABCD\Documents\Helsa\NEWdata in WSL is mapped to /mnt/c/Users/ABCD/Documents/Helsa/NEWdata. Use:
 
-cd /mnt/c/Users/wjw_4/Documents/Helsa/NEWdata
+cd /mnt/c/Users/ABCD/Documents/Helsa/NEWdata
 
-# In case to get 'No such file or directory', check the existence:
+----
+In case to get 'No such file or directory', check the existence:
 
-ls -ld /mnt/c/Users/wjw_4/Documents/Helsa/NEWdata
+ls -ld /mnt/c/Users/ABCD/Documents/Helsa/NEWdata
 
-# If the folder doesn’t exist, list the parent directory to confirm the correct name:
+----
+If the folder doesn’t exist, list the parent directory to confirm the correct name:
 
-ls -l /mnt/c/Users/wjw_4/Documents/Helsa
+ls -l /mnt/c/Users/ABCD/Documents/Helsa
 
-# Once find it, then check the content:
+----
+Once find it, then check the content:
 
 ls
 
-# The data folder's structure of my data:
+----
+The data folder's structure of my data:
 
-/mnt/c/Users/wjw_4/Documents/Helsa/NEWdata/
+/mnt/c/Users/ABCD/Documents/Helsa/NEWdata/
 ├── sub-01/
 │   ├── anat/
 │   │   ├── sub-01_T1w.nii.gz (or similar T1-weighted MRI file)
@@ -31,23 +38,25 @@ ls
 │   │   ├── sub-17_T1w.nii.gz
 
 
-# Set up FSL environment
+----
+Set up FSL environment
 
 source /etc/fsl/5.0/fsl.sh
         
-# Or, if installed in a custom directory (e.g., /usr/local/fsl)
+--
+Or, if installed in a custom directory (e.g., /usr/local/fsl)
 
 export FSLDIR=/usr/local/fsl
 source $FSLDIR/etc/fslconf/fsl.sh
 
+----
+Change the root directory
 
-# Change the root directory
-
-cd /mnt/c/Users/wjw_4/Documents/Helsa/NEWdata
+cd /mnt/c/Users/ABCD/Documents/Helsa/NEWdata
 
 
-
-#  Preprocess with BET (Skull Stripping)
+----
+Preprocess with BET (Skull Stripping)
 
 bet sub-01/anat/sub-01_T1w.nii.gz sub-01/anat/sub-01_T1w_brain.nii.gz -f 0.5 -g 0
 
@@ -55,6 +64,116 @@ bet sub-01/anat/sub-01_T1w.nii.gz sub-01/anat/sub-01_T1w_brain.nii.gz -f 0.5 -g 
 ** -f 0.5: Fractional intensity threshold (adjust if skull-stripping is too aggressive or lenient).
 ** -g 0: Vertical gradient (adjust if needed).
 
-# Check the output file:
+----
+Check the output file:
 
 fsleyes sub-01/anat/sub-01_T1w_brain.nii.gz
+
+----
+Run FAST segmentation:
+
+fast -t 1 -n 3 -o sub-01/anat/sub-01_T1w_seg sub-01/anat/sub-01_T1w_brain.nii.gz
+
+** -t 1: T1-weighted image (use -t 2 for T2-weighted if applicable).
+** -n 3: Segment into 3 tissue classes (CSF, gray matter, white matter).
+** -o sub-01/anat/sub-01_T1w_seg: Output prefix for results (e.g., sub-01_T1w_seg_seg.nii.gz).
+
+
+----
+Start writing the core part of the processing
+
+
+nano process_mri.sh
+
+#!/bin/bash
+# Set up FSL environment
+export FSLDIR=/usr/local/fsl
+source $FSLDIR/etc/fslconf/fsl.sh
+
+# Check if FSL is configured
+if ! command -v fast &> /dev/null; then
+    echo "Error: FAST not found. Check FSL installation."
+    exit 1
+fi
+
+# Loop through subjects sub-01 to sub-17
+for i in $(seq -w 1 17); do
+    subject="sub-${i}"
+    input_file="${subject}/anat/${subject}_T1w.nii.gz"   ---------------- Please change the input data if neccessary
+    brain_file="${subject}/anat/${subject}_T1w_brain.nii.gz"
+    output_prefix="${subject}/anat/${subject}_T1w_seg"
+    
+    echo "Processing ${subject}..."
+    
+    # Skull stripping with BET
+    if [ -f "$input_file" ]; then
+        bet "$input_file" "$brain_file" -f 0.5 -g 0
+        if [ -f "$brain_file" ]; then
+            # Run FAST
+            fast -t 1 -n 3 -o "$output_prefix" "$brain_file"
+            echo "${subject} processed successfully."
+        else
+            echo "Error: BET failed for ${subject}."
+        fi
+    else
+        echo "Error: Input file ${input_file} not found."
+    fi
+done
+
+# Extract tissue volumes
+echo "Subject,GrayMatterVolume,WhiteMatterVolume,CSFVolume" > volumes.csv
+for i in $(seq -w 1 17); do
+    subject="sub-${i}"
+    gm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_1.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    wm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_2.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    csf_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_0.nii.gz -V | awk '{print $2}' 2>/dev/null || echo "NA")
+    echo "${subject},${gm_vol},${wm_vol},${csf_vol}" >> volumes.csv
+done
+
+
+
+
+Save and exit (Ctrl+O, Enter, Ctrl+X).
+
+
+
+
+----
+Run the script
+
+chmod +x process_mri.sh
+
+./process_mri.sh
+
+
+----
+Verify the output, For each subject, check the output files in sub-XX/anat/:
+
+fsleyes sub-01/anat/sub-01_T1w_brain.nii.gz sub-01/anat/sub-01_T1w_seg_seg.nii.gz
+
+----
+Extract features
+
+fslstats sub-01/anat/sub-01_T1w_seg_pve_1.nii.gz -V
+
+----
+Create a volumns.csv to file with tissue volumns for all subjects
+
+echo "Subject,GrayMatterVolume,WhiteMatterVolume,CSFVolume" > volumes.csv
+for i in $(seq -w 1 17); do
+    subject="sub-${i}"
+    gm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_1.nii.gz -V | awk '{print $2}')
+    wm_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_2.nii.gz -V | awk '{print $2}')
+    csf_vol=$(fslstats ${subject}/anat/${subject}_T1w_seg_pve_0.nii.gz -V | awk '{print $2}')
+    echo "${subject},${gm_vol},${wm_vol},${csf_vol}" >> volumes.csv
+done
+
+
+----
+
+ls sub-01/anat/*seg*
+
+----
+Visualize results with FSLeyes:
+
+fsleyes sub-01/anat/sub-01_T1w_brain.nii.gz sub-01/anat/sub-01_T1w_seg_seg.nii.gz
