@@ -18,3 +18,55 @@ ls -l freesurfer_ubuntu22-8.0.0_amd64.deb
 ----
 Install the Package, Use dpkg to install the .deb file:
 
+sudo dpkg -i freesurfer_ubuntu22-8.0.0_amd64.deb
+
+----
+Verify installations:
+
+ls /usr/local/freesurfer
+
+--------------- (Trouble shooting) ---------------
+You might meet problems like me, so I put a solution here:
+
+    Update Package Lists: 
+
+sudo apt-get update
+
+    Install Missing Dependencies:
+
+sudo apt-get install -y \
+    language-pack-en \
+    libx11-dev \
+    gettext \
+    x11-apps \
+    csh \
+    tcsh \
+    xorg \
+    xorg-dev \
+    xserver-xorg-video-intel \
+    libncurses5 \
+    libglu1-mesa \
+    libgomp1 \
+    libicu70 \
+    libjpeg62-turbo \
+    libopengl0 \
+    libpcre2-16-0 \
+    libpcre3 \
+    libquadmath0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-render-util0 \
+    libxcb-util1 \
+    libxcb-xinerama0 \
+    libxcb-xinput0 \
+    libxcb-xkb1 \
+    libxkbcommon-x11-0 \
+    libxss1
+
+    Fix Remaining Dependencies:
+
+sudo apt-get install -f
+
+
+--------------- (Something wrong here, will solve it soon) ---------------
