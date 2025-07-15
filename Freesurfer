@@ -1,0 +1,20 @@
+-----
+System: Windows, using Ubuntu base on Linux.
+
+Let's do it from the very beginning!
+Where to download: https://surfer.nmr.mgh.harvard.edu/fswiki/rel7downloads
+After downloading, we can install the Freesurfer.
+
+----
+Navigate to the download directory:
+
+cd /mnt/c/Users/ABCD/Downloads
+
+----
+Verify the File, confirm the .deb file is present:
+
+ls -l freesurfer_ubuntu22-8.0.0_amd64.deb
+
+----
+Install the Package, Use dpkg to install the .deb file:
+
