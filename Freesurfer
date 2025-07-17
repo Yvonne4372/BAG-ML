@@ -54,3 +54,30 @@ cd ~
 sudo apt-get install -y ./freesurfer_ubuntu22-8.0.0_amd64.deb
 
 ---------
+Fixing the license:
+
+cp /mnt/c/Users/wjw_4/freesurfer/license.txt ~/
+
+echo "export FS_LICENSE=$HOME/license.txt" >> ~/.bashrc
+
+echo "export FREESURFER_HOME=/usr/local/freesurfer/8.0.0" >> ~/.bashrc
+echo "source \$FREESURFER_HOME/SetUpFreeSurfer.sh" >> ~/.bashrc
+
+source ~/.bashrc
+
+echo "export DISPLAY=:0" >> ~/.bashrc
+echo "export XDG_RUNTIME_DIR=$HOME/.xdg" >> ~/.bashrc
+source ~/.bashrc
+
+xhost +local:
+
+---------
+Test the view:
+
+freeview
+
+---------
+Test a FreeSurfer command:
+
+mri_convert --help
+
